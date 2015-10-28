@@ -1,0 +1,271 @@
+{% extends "mainapp/home_app.html" %}
+{% load bootstrap3 %}
+{% load staticfiles %}
+
+{% block app_form_html %}
+
+{# bootstrap_javascript jquery=1 #}
+{% bootstrap_messages %}
+
+<style>
+      body {
+        height: 100%;
+      }
+      #map {
+        height: 700px;
+        width: 900px;
+      }
+      #global_map {
+        height: 700px;
+        width: 900px;
+      }
+</style>
+
+
+<div class="panel panel-primary" style="max-width: 1000px; max-height: 800px">
+    <div class="panel-heading"><h3> Estimated <strong>local crime levels </strong> </h3></div>
+    <div class="panel-body" >
+        <div id="map" frameborder="0" style="border:0" ></div>
+    </div>
+</div>
+
+<hr>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Color</th>
+            <th>Option</th>
+            <th>Relative danger level</th>
+            <th>Relative crime level</th>
+            <th>Details</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for waypoint_info in waypoint_infos %}
+        <tr >
+            <td style="background-color: {{waypoint_info.display_color}}"></td>
+            <td>{% if waypoint_info.waypoint_n == 0 %}
+                <strong> {{waypoint_info.display_waypoint_n}}</strong> (Google's 1st)
+                {% else %} 
+                <strong> {{waypoint_info.display_waypoint_n}}</strong> 
+                {% endif %}</td>
+            <td>{{waypoint_info.sum_quotient_density_along_poly|floatformat:"2"}}</td>
+            <td>{{waypoint_info.sum_crime_density_along_poly|floatformat:"2"}}</td>
+            <td> <button class="btn btn-primary" id="dir_btn{{waypoint_info.display_waypoint_n}}"> directions, distance... </button> </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<hr>
+
+<div id="dir_mess">
+</div>
+
+<hr>
+
+
+<div class="alert alert-info">
+    <h5>Update search:</h5>
+    <form action="/mainapp/output/" method="post">
+        {% csrf_token %}
+        {{ form.as_table }}
+        <input type="submit" value="Submit" />
+    </form>
+</div>
+
+
+
+
+<script>
+
+var map, heatmap;
+
+function initMap() {
+    map = new google.maps.Map(document.getElementById('map'), {
+        zoom: 15,
+        center: {lat: {{center_lati}}, lng: {{center_long}}},
+        mapTypeId: google.maps.MapTypeId.MAP
+    });
+
+    heatmap = new google.maps.visualization.HeatmapLayer({
+        data: getPoints(),
+        map: map,
+        radius: 40,
+        opacity: 0.7,
+        gradient: [
+            'rgba(0, 255, 255, 0)',
+            'rgba(0, 255, 255, 1)',
+            'rgba(0, 191, 255, 1)',
+            'rgba(0, 127, 255, 1)',
+            'rgba(0, 63, 255, 1)',
+            'rgba(0, 0, 255, 1)',
+            'rgba(0, 0, 223, 1)',
+            'rgba(0, 0, 191, 1)',
+            'rgba(0, 0, 159, 1)',
+            'rgba(0, 0, 127, 1)',
+            'rgba(63, 63, 91, 1)',
+            'rgba(127, 127, 63, 1)',
+            'rgba(191, 191, 31, 1)',
+            'rgba(255, 255, 0, 1)'
+        ]
+    });
+
+    {% for waypoint_info in waypoint_infos %}
+    var PolyCoordinates{{waypoint_info.display_waypoint_n}} = [
+    {% for y, x in waypoint_info.poly %}
+    {lat: {{ y }}, lng: {{ x }} },
+    {% endfor %}
+    ];
+    {% endfor %}
+
+    var mySymbol = {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 10,
+        strokeWeight: 5,
+        fillOpacity: 1
+    };
+
+    var marker_orig = new google.maps.Marker({
+        position: {lat: {{ orig_lati }}, lng: {{ orig_long }} },
+        map: map,
+        title: 'origin'
+    });
+
+    var marker_dest = new google.maps.Marker({
+        position: {lat: {{ dest_lati }}, lng: {{ dest_long }} },
+        map: map,
+        title: 'destination'
+    });
+
+    {# for waypoint_info in waypoint_infos #}
+    //var icons{{waypoint_info.display_waypoint_n}} = new google.maps.Polyline({[
+    //    {lat: {{ y }}, lng: {{ x }} },
+    //  ];
+    {# endfor #}
+
+    //var myMouseover = {
+    //    path: google.maps.SymbolPath.CIRCLE,
+    //    scale: 10,
+    //    strokeWeight: 5,
+    //    fillOpacity: 1
+    //};
+
+    {% for waypoint_info in waypoint_infos %}
+    var polyline{{waypoint_info.display_waypoint_n}} = new google.maps.Polyline({
+        map: map,
+        path: PolyCoordinates{{waypoint_info.display_waypoint_n}},
+        strokeColor: '{{waypoint_info.display_color}}',
+        clickable: true,
+        strokeOpacity: 0.8,
+        strokeWeight: 6,
+    });
+    {% endfor %}
+
+
+    {% for waypoint_info_out in waypoint_infos %}
+    google.maps.event.addListener(
+            polyline{{waypoint_info_out.display_waypoint_n}}, 'mouseover', 
+            function() { 
+                {% for waypoint_info_in in waypoint_infos %}
+                {% if waypoint_info_in.display_waypoint_n != waypoint_info_out.display_waypoint_n %}
+                polyline{{waypoint_info_in.display_waypoint_n}}.setVisible(false);
+                {% else %}
+                polyline{{waypoint_info_in.display_waypoint_n}}.setVisible(true);
+                {% endif %}
+                {% endfor %}
+            });
+    {% endfor %}
+
+    {% for waypoint_info_out in waypoint_infos %}
+    google.maps.event.addListener(
+            polyline{{waypoint_info_out.display_waypoint_n}}, 'mouseout', 
+            function() { 
+                {% for waypoint_info_in in waypoint_infos %}
+                polyline{{waypoint_info_in.display_waypoint_n}}.setVisible(true);
+                {% endfor %}
+            });
+    {% endfor %}
+
+
+}
+
+function getPoints() {
+    return [
+    {% for x,y in crimes_around %}
+    new google.maps.LatLng({{y}}, {{x}}),
+    {% endfor %} 
+    new google.maps.LatLng(37.775,  -122.434)
+    ];
+}
+
+
+{% for waypoint_info in waypoint_infos %}
+var el{{waypoint_info.display_waypoint_n}} = document.getElementById("dir_btn{{waypoint_info.display_waypoint_n}}");
+var dir_html_block{{waypoint_info.display_waypoint_n}} = '<iframe width="600" height="400" frameborder="0" style="border:0" src="{{waypoint_info.embed_dir_api_url}}" allowfullscreen></iframe>'
+
+el{{waypoint_info.display_waypoint_n}}.addEventListener("click", function(){
+    document.getElementById("dir_mess").innerHTML = dir_html_block{{waypoint_info.display_waypoint_n}};
+});
+{% endfor %}
+
+
+</script>
+
+<script async defer src="{{javascript_api_url}}"></script>
+
+{% endblock %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h4>Option 2:</h4>
+
+<iframe width="500" height="300" frameborder="0" style="border:0" src="{{dir_url2}}" allowfullscreen>
+</iframe>
+
+<h4>Crime index: {{danger_index2}}
+</h4>
+
+
+
+<h4>Option 3:</h4>
+
+<iframe width="500" height="300" frameborder="0" style="border:0" src="{{dir_url3}}" allowfullscreen>
+</iframe>
+
+<h4>Crime index: {{danger_index3}}</h4>
+
+
+{% for waypoint_info in waypoint_infos %}
+
+    <div class="alert alert-info">
+        <h5> {% if waypoint_info.waypoint_n == 0 %}
+            <strong>Option  {{waypoint_info.display_waypoint_n}}</strong> (Google's default)
+            {% else %} 
+            <strong>Option  {{waypoint_info.display_waypoint_n}}</strong> 
+            {% endif %} <br>
+    Relative <strong>danger index</strong>: {{waypoint_info.sum_quotient_density_along_poly}} <br>
+    Relative <strong>crime index</strong>: {{waypoint_info.sum_crime_density_along_poly}}</h5>
+
+        <iframe width="500" height="300" frameborder="0" style="border:0" src="{{waypoint_info.embed_dir_api_url}}" allowfullscreen></iframe>
+    </div>
+
+{% endfor %}
+

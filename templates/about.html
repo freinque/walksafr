@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% load bootstrap3 %}
+{% load staticfiles %}
+
+{#{% block title %}BarBitURythme{% endblock %}#}
+{% block about_active %}class="active"{% endblock %}
+
+{% block base_content %}
+{#{% bootstrap_messages %}#} 
+    
+<div class="container">
+<center>
+    <div class="panel panel-primary" style="max-width: 700px">
+        <div class="panel-body" >
+        
+        <div class="page-header">
+        <h1>Fran&ccedilois Charest</h1>
+        </div>
+        
+        <div style="text-align: left">
+        <img align="right" src="{% static 'freinque_sf.png' %}" width="250px" >
+        <p style="max-width: 380px; text-align: justify" align="left" class="lead"> This is my Insight Data Science project. In the past, I studied mathematics and physics at the Universit&eacute de Montr&eacuteal and ENS Lyon and I completed a postdoc at Columbia University.  </p>
+        </div>
+        
+        </div>
+        
+        {% buttons %}
+        <a class="btn btn-primary" href="mailto:freinque.prof@gmail.com?Subject=WalkSafr" target="_top">
+         {% bootstrap_icon "envelope" %} Send mail
+        </a>
+        <a class="btn btn_primary" href="https://github.com/freinque/walksafr" target="_top">
+         {% bootstrap_icon "star" %} WalkSafr on GitHub
+        </a>
+        {% endbuttons %}
+        
+        <br>
+        <br>
+    </div>
+</center>
+</div>
+
+{% endblock %}
+

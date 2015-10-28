@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% load bootstrap3 %}
+
+{#{% block title %}BarBitURythme{% endblock %}#}
+{% block home_active %}class="active"{% endblock %}
+
+{% block base_content %}
+{#{% bootstrap_messages %}#} 
+<div class="container">
+    <center>
+    <div class="panel panel-primary" style="max-width: 1100px">
+        <div class="panel-body" >
+        <div class="page-header">
+        <h1>Welcome to WalkSafr</h1>
+        </div>
+        <p class="lead"> Using data to improve your personal safety on the streets (of San Francisco, for now). </p>
+        </div>
+        
+        {% buttons %}
+        <a class="btn btn-primary" href="{% url 'mainapp:input' %}">
+         {% bootstrap_icon "check" %}Find safr walking routes
+        </a>
+        {% endbuttons %}
+        
+        <br>
+        <br>
+        <br>
+    </div>
+    </center>
+</div>
+
+{% endblock %}
+

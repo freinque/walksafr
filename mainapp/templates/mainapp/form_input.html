@@ -1,0 +1,109 @@
+{% extends "mainapp/home_app.html" %}
+{% load bootstrap3 %}
+{% load staticfiles %}
+
+{% block app_form_html %}
+
+{# bootstrap_javascript jquery=1 #}
+{% bootstrap_messages %}
+
+<form action="/mainapp/output/" method="post">
+    {% csrf_token %}
+
+
+    <div class="location_orig">
+        <h3>Origin:</h3>
+        <input id="choose_orig" type="text" placeholder="Type in a SF address" size=70 value="1670 Polk Street" />
+        <!--input id="find_orig" type="button" value="find_orig" /-->
+
+        <fieldset>
+            <input type="hidden" data_orig="locality" name="orig_city" type="text" value="">
+            <input type="hidden" data_orig="lat" name="orig_lati" type="text" value="">
+            <input type="hidden" data_orig="lng" name="orig_long" type="text" value="">
+        </fieldset>
+    </div>
+
+
+    <div class="location_dest">
+        <h3>Destination:</h3>
+        <input id="choose_dest" type="text" placeholder="Type in a SF address" size=70 value="InterContinental San Francisco"/>
+        <!--input id="find_dest" type="button" value="find_dest" /-->
+
+        <fieldset>
+            <input type="hidden" data_dest="locality" name="dest_city" type="text" value="">
+            <input type="hidden" data_dest="lat" name="dest_lati" type="text" value="">
+            <input type="hidden" data_dest="lng" name="dest_long" type="text" value="">
+        </fieldset>
+    </div>
+
+
+    <h3>When:</h3>
+    <div class="fieldWrapper">
+        <label for="{{ form.ends_time.id_for_label }}"> Time</label>{{ form.ends_time }}
+        <label for="{{ form.ends_date.id_for_label }}"> Date</label>{{ form.ends_date }}
+    </div>
+    <!--div class="fieldWrapper">
+        <label for="{{ form.ends_datetime.id_for_label }}"> Datetime</label>
+        {{ form.ends_datetime }}
+    </div-->
+
+        <br>
+
+        {% buttons %}
+        <button type="submit" class="btn btn-primary btn-block" value="Submit" name="search_btn" id="search_btn">
+            {% bootstrap_icon "check" %} Find safr walking routes
+        </button>
+        {% endbuttons %}
+
+        <div id="search_mess">
+        </div>
+
+</form>
+
+<script src="http://maps.googleapis.com/maps/api/js?sensor=false&amp;libraries=places"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+
+<script src="{% static 'mainapp/jquery.geocomplete.js' %}"></script>
+
+<script>
+
+$(function(){
+    $("#choose_orig").geocomplete({
+        details: ".location_orig",
+        detailsAttribute: "data_orig",
+        types: ["geocode", "establishment"],
+    });
+
+    $("#find_orig").click(function(){
+        $("#orig").trigger("geocode");
+    });
+})
+
+$(function(){
+    $("#choose_dest").geocomplete({
+        details: ".location_dest",
+        detailsAttribute: "data_dest",
+        types: ["geocode", "establishment"],
+    });
+
+    $("#find_dest").click(function(){
+        $("#dest").trigger("geocode");
+    });
+})
+
+var el = document.getElementById("search_btn");
+var search_html_block = '<div class="alert alert-info"> <center> <img src="{% static 'mainapp/loader.gif' %}"> <br> <strong>Got it!</strong> WalkSafr is now working hard to find you a hella safe walking route. </center> </div>'
+
+el.addEventListener("click", function(){
+    document.getElementById("search_mess").innerHTML = search_html_block;
+});
+
+</script>
+
+{% endblock %}
+
+      <div class="map_canvas_dest"></div> 
+
+      <div class="map_canvas_orig"></div> 
+ 
+            map: ".map_canvas_dest",
