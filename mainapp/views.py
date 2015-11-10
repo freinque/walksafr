@@ -68,6 +68,8 @@ def form_output(request):
         
         ###tweaking form
         ends = form.save(commit=False)
+        if ends.ends_date > datetime.datetime.now().date():
+            ends.ends_date = datetime.datetime.now().date()
         ends.ends_datetime = datetime.datetime.combine(ends.ends_date, ends.ends_time)
         ends.orig_city = ends.orig_city.lower()
         ends.dest_city = ends.dest_city.lower()
@@ -117,10 +119,13 @@ def form_output(request):
         
             ########## setting up parameters
             EPSILON = 0.0001 
-            N_DAYS_BEFORE = 30
+            N_DAYS_BEFORE = 50
+            N_DAYS_BEFORE_GLOBAL = 21
             POPULATION_BANDWIDTH = 0.015
             CRIME_BANDWIDTH = 0.0005
+            TWEET_BANDWIDTH = 0.001
             GLOBAL_CRIME_BANDWIDTH = 0.0005 #0.001 #this should ideally depend on the context, but we want to save time
+            TWEET_PROP = 0.25
             x_bot, x_top, y_bot, y_top = mainapp.walksafr.get_bot_top( uni_polys )
             global_x_bot, global_x_top, global_y_bot, global_y_top = (-122.5228, -122.3511, 37.6980, 37.8097)
             
@@ -128,7 +133,7 @@ def form_output(request):
             ########## local crime
             print 'local crimes starts'
         
-            crimes_around, grid_around = mainapp.walksafr.get_crimes_around( x_bot, x_top, y_bot, y_top, datetime.datetime(2015,8,1)-datetime.timedelta(days=N_DAYS_BEFORE), datetime.datetime(2015,8,1), EPSILON)
+            crimes_around, grid_around = mainapp.walksafr.get_crimes_around( x_bot, x_top, y_bot, y_top, ends.ends_datetime-datetime.timedelta(days=N_DAYS_BEFORE), ends.ends_datetime, EPSILON)
             crimes_around['ns_time'] = crimes_around['ns_time'].apply(lambda x:datetime.datetime.strptime(str(x),'%H:%M:%S'))
             crimes_around['time_of_day'] = crimes_around.apply(lambda row: EPSILON*(row['ns_time'].hour), axis=1)
         
@@ -145,12 +150,35 @@ def form_output(request):
         
             print 'local crimes ends'
 
+            ######### local population, having in mind a more accurate measure of population density
+            print 'local population starts'
+        
+            tweets_around, grid_around = mainapp.walksafr.get_tweets_around( x_bot, x_top, y_bot, y_top, ends.ends_datetime-datetime.timedelta(days=N_DAYS_BEFORE), ends.ends_datetime, EPSILON)
+            tweets_around['ns_time'] = tweets_around['ns_time'].apply(lambda x:datetime.datetime.strptime(str(x),'%H:%M:%S'))
+            tweets_around['time_of_day'] = tweets_around.apply(lambda row: EPSILON*(row['ns_time'].hour), axis=1)
+        
+            tweet_X = np.array( tweets_around[['time_of_day','x','y']] )
+        
+            ### fixed tweet_bandwidth, but here is (roughly) how I chose parameters: 
+            #cv_grid = sklearn.grid_search.GridSearchCV(sklearn.neighbors.KernelDensity(),{'bandwidth': np.linspace(0.00001, .002, 5)}, cv=5)
+            #cv_grid.fit(tweet_X)
+            tweet_bandwidth = TWEET_BANDWIDTH #cv_grid.best_params_['bandwidth']
+            #print 'local tweets bandwidth: ' + str(tweet_bandwidth)
+
+            tweet_kernel_density_model = sklearn.neighbors.KernelDensity(kernel='gaussian',bandwidth=tweet_bandwidth)
+            tweet_kernel_density_model.fit( tweet_X )
+        
+            print 'local population ends'
+        
+
             ########## global crime
             print 'global crimes starts'
-            crimes_global, grid_global = mainapp.walksafr.get_crimes_around(global_x_bot, global_x_top, global_y_bot, global_y_top, datetime.datetime(2015,8,1)-datetime.timedelta(days=7), datetime.datetime(2015,8,1), EPSILON)
+
+            crimes_global, grid_global = mainapp.walksafr.get_crimes_around(global_x_bot, global_x_top, global_y_bot, global_y_top, ends.ends_datetime-datetime.timedelta(days=N_DAYS_BEFORE_GLOBAL), ends.ends_datetime, EPSILON)
             crimes_global['ns_time'] = crimes_global['ns_time'].apply(lambda x:datetime.datetime.strptime(str(x),'%H:%M:%S'))
             crimes_global['time_of_day'] = crimes_global.apply(lambda row: EPSILON*(row['ns_time'].hour), axis=1)
-        
+            #print crimes_global
+
             global_crime_X = np.array( crimes_global[['time_of_day','x','y']] )
         
             #cv_grid = sklearn.grid_search.GridSearchCV(sklearn.neighbors.KernelDensity(),{'bandwidth': np.linspace(0.0001, .001, 20)}, cv=5)
@@ -160,30 +188,15 @@ def form_output(request):
 
             global_crime_kernel_density_model = sklearn.neighbors.KernelDensity(kernel='gaussian',bandwidth=crime_bandwidth)
             global_crime_kernel_density_model.fit( global_crime_X )
+            
             print 'global crimes ends'
-        
-            ######### local population, having in mind a more accurate measure of population density
-            #print 'local pop starts'
-            #population_around, population_grid_around = mainapp.walksafr.get_population_around( x_bot, x_top, y_bot, y_top, datetime.datetime(2015,8,1)-datetime.timedelta(days=N_DAYS_BEFORE), datetime.datetime(2015,8,1), EPSILON)
-            #population_around['time_of_day'] = population_around.apply(lambda row: EPSILON*(row['ns_time']), axis=1)
-        
-            #population_X = np.array( population_around[['time_of_day','x','y']] )
-         
-            #cv_grid = sklearn.grid_search.GridSearchCV(sklearn.neighbors.KernelDensity(),{'bandwidth': np.linspace(0.001, .04, 5)}, cv=5)
-            #cv_grid.fit(population_X)
-            #population_bandwidth = cv_grid.best_params_['bandwidth']
-            #population_bandwidth = POPULATION_BANDWIDTH
 
-            #population_kernel_density_model = sklearn.neighbors.KernelDensity(kernel='gaussian',bandwidth=population_bandwidth)
-            #population_kernel_density_model.fit( population_X )
-            #print 'local pop ends'
-        
             ######### global population
             print 'global pop starts'
-            population_global, grid_global = mainapp.walksafr.get_population_around(global_x_bot, global_x_top, global_y_bot, global_y_top, datetime.datetime(2015,8,1)-datetime.timedelta(days=7), datetime.datetime(2015,8,1), EPSILON)
+
+            population_global, grid_global = mainapp.walksafr.get_population_around(global_x_bot, global_x_top, global_y_bot, global_y_top, ends.ends_datetime-datetime.timedelta(days=N_DAYS_BEFORE_GLOBAL), ends.ends_datetime, EPSILON)
             population_global['time_of_day'] = population_global.apply(lambda row: EPSILON*(row['ns_time']), axis=1)
-        
-            print population_global
+            #print population_global
         
             global_population_X = np.array( population_global[['time_of_day','x','y']] )
          
@@ -194,17 +207,24 @@ def form_output(request):
 
             global_population_kernel_density_model = sklearn.neighbors.KernelDensity(kernel='gaussian',bandwidth=population_bandwidth)
             global_population_kernel_density_model.fit( global_population_X )
-            print 'local pop ends'
+            
+            print 'global pop ends'
+
+
 
             ############# integration along paths
             print 'integration starts'
+            
             grid_polys = []
             global_grid_polys = []
-            #density_along_polys = []
+            
             sum_quotient_density_along_polys = []
             sum_crime_density_along_polys = []
+            sum_tweet_density_along_polys = []
             mean_global_population_density_along_polys = []
             mean_global_crime_density_along_polys = []
+            mean_global_quotient_density_along_polys = []
+            
             for waypoint_n in range(N_WAYPOINTS):
                 uni_poly = pd.DataFrame(uni_polys[waypoint_n], columns=['x','y'])
                 uni_poly['ns_time'] = [ends.ends_datetime]*len(uni_poly)
@@ -216,39 +236,36 @@ def form_output(request):
            
                 crime_density_along_poly = crime_kernel_density_model.score_samples( grid_poly )
                 crime_density_along_poly = np.exp(crime_density_along_poly)
-            
                 sum_crime_density_along_polys.append( np.sum(crime_density_along_poly) )       
             
-                #population_density_along_poly = population_kernel_density_model.score_samples( grid_poly )
-                #population_density_along_poly = np.exp(population_density_along_poly)
-            
+                tweet_density_along_poly = tweet_kernel_density_model.score_samples( grid_poly )
+                tweet_density_along_poly = np.exp(tweet_density_along_poly)
+                sum_tweet_density_along_polys.append( np.sum(tweet_density_along_poly) )       
+ 
                 ### global
                 global_grid_poly = mainapp.walksafr.project_on_grid( np.array(uni_poly[['time_of_day','x','y']]), grid_global )
                 global_grid_polys.append( global_grid_poly )
     
                 global_crime_density_along_poly = global_crime_kernel_density_model.score_samples( global_grid_poly )
                 global_crime_density_along_poly = np.exp(global_crime_density_along_poly)
- 
+                mean_global_crime_density_along_polys.append( np.mean(global_crime_density_along_poly) )       
                 #print global_crime_density_along_poly
-
+                
                 global_population_density_along_poly = global_population_kernel_density_model.score_samples( global_grid_poly )
                 global_population_density_along_poly = np.exp(global_population_density_along_poly)
-             
-                #print global_population_density_along_poly
-            
-                #global_quotient_density_along_poly = global_crime_density_along_poly/global_population_density_along_poly
-
-                mean_global_crime_density_along_polys.append( np.mean(global_crime_density_along_poly) )       
-            
                 mean_global_population_density_along_poly = np.mean(global_population_density_along_poly)
                 mean_global_population_density_along_polys.append( mean_global_population_density_along_poly )       
- 
+                #print global_population_density_along_poly
+
                 ### quotient
-                
-                #quotient_density_along_poly = crime_density_along_poly/population_density_along_poly
-                quotient_density_along_poly = crime_density_along_poly/mean_global_population_density_along_poly
+                ## local
+                quotient_density_along_poly = crime_density_along_poly/((1.-TWEET_PROP)*global_population_density_along_poly + TWEET_PROP*tweet_density_along_poly)
                 sum_quotient_density_along_polys.append( np.sum(quotient_density_along_poly) )       
-            
+ 
+                ## global
+                global_quotient_density_along_poly = global_crime_density_along_poly/global_population_density_along_poly
+                mean_global_quotient_density_along_polys.append( np.mean(global_quotient_density_along_poly) )       
+                               
 
             ### normalizing local densities
             sum_crime_density_along_polys = sum_crime_density_along_polys/np.min(sum_crime_density_along_polys)
@@ -256,17 +273,19 @@ def form_output(request):
             sum_quotient_density_along_polys = sum_quotient_density_along_polys/np.min(sum_quotient_density_along_polys)
         
             ### normalizing by global densities
-            #mean_global_population_density_along  = np.mean(mean_global_population_density_along_polys)
-            #mean_global_crime_density_along = np.mean(mean_global_crime_density_along_polys)
-        
-            #mean_global_quotient_density = 
-            mean_global_density = 1./((global_x_top-global_x_bot)*0.85*(global_y_top-global_y_bot)*0.85*24*EPSILON) #size of grid
+            rand_grid_global = [ grid_global[np.random.randint(24),np.random.randint(10,90),np.random.randint(10,90)] for i in range(1000) ]
+            mean_global_crime_density = np.mean( [ np.exp(global_crime_kernel_density_model.score( r )) for r in rand_grid_global ] )
+            mean_global_population_density = np.mean( [ np.exp(global_population_kernel_density_model.score( r )) for r in rand_grid_global ] )
+            mean_global_quotient_density = np.mean( [ np.exp(global_crime_kernel_density_model.score( r ))/np.exp(global_population_kernel_density_model.score( r )) for r in rand_grid_global ] )
 
-            #print mean_global_quotient_density_along_polys
-            print np.array(mean_global_crime_density_along_polys)/mean_global_density
-            print np.array(mean_global_population_density_along_polys)/mean_global_density
+            print np.array(mean_global_crime_density_along_polys)/mean_global_crime_density
+            print np.array(mean_global_population_density_along_polys)/mean_global_population_density
+            print np.array(mean_global_quotient_density_along_polys)/mean_global_quotient_density
+            
             print 'integration ends'
-        
+       
+
+
             ########## rendering the output template
             javascript_api_url = mainapp.api.api_script.get_javascript_api_url()
 

@@ -29,10 +29,35 @@ def get_crimes_around(bot_x=-122.5228, top_x=-122.3511, bot_y=37.6980, top_y=37.
     
     nearby_crimes = django_pandas.io.read_frame(filtered_qs)
 
-    print str(len(nearby_crimes)) + ' nearby crimes found '
+    print str(len(nearby_crimes)) + ' crimes found '
     
     return nearby_crimes, nearby_grid
- 
+
+def get_tweets_around(bot_x=-122.5228, top_x=-122.3511, bot_y=37.6980, top_y=37.8097, start_date=None, end_date=None, epsilon=1, grid_size = 100, time_grid_size = 24):
+    '''
+    returns dataframe of crime points within the specified bounds plus a local grid
+    '''
+    EXTRA_MARGIN = 0.01
+    
+    # constructing grid
+    x_a = np.linspace( bot_x-EXTRA_MARGIN, top_x+EXTRA_MARGIN, grid_size)
+    y_a = np.linspace( bot_y-EXTRA_MARGIN, top_y+EXTRA_MARGIN, grid_size)
+    t_a = np.linspace( 0, (time_grid_size-1)*epsilon, time_grid_size)
+    t,x,y = np.meshgrid(t_a,x_a,y_a, sparse=False, indexing='ij')
+
+    nearby_grid = np.array([[[[t[k,j,i],x[k,j,i],y[k,j,i]] for i in range(grid_size)]for j in range(grid_size)]for k in range(time_grid_size)])
+
+    # constructing dataframe
+    qs = mainapp.models.Tweets.objects.all()
+    filtered_qs = qs.filter( x__lte=top_x+EXTRA_MARGIN, x__gte=bot_x-EXTRA_MARGIN, y__lte=top_y+EXTRA_MARGIN, y__gte=bot_y-EXTRA_MARGIN)
+    #ns_datetime__gte=start_date, ns_datetime__lte=end_date,
+    
+    nearby_tweets = django_pandas.io.read_frame(filtered_qs)
+
+    print str(len(nearby_tweets)) + ' tweets found '
+    
+    return nearby_tweets, nearby_grid
+  
 def get_population_around(bot_x=-122.5228, top_x=-122.3511, bot_y=37.6980, top_y=37.8097, start_date=None, end_date=None, epsilon=1, grid_size = 100, time_grid_size = 24):
     '''
     returns dataframe of population points within the specified bounds plus a local grid
@@ -67,7 +92,7 @@ def get_population_around(bot_x=-122.5228, top_x=-122.3511, bot_y=37.6980, top_y
 
     nearby_population['density'] = 3000*nearby_population['density']/np.sum(nearby_population['density'])
     
-    print str(len(nearby_population)) + ' nearby population'
+    print str(len(nearby_population)) + ' population points found'
 
     ###? here I'm representing the pop weight of the points by adding a proportional nb of points... annoying
     nearby_population_weighted = []
@@ -149,6 +174,9 @@ def dist_seg_pt(pt,endpt_1,endpt_2):
         return min(dist_endpt_1,dist_endpt_2)
 
 def get_random_coord(x_min, x_max, y_min, y_max, max_dist):
+    '''
+    returns two points in the rectangle x_min, x_max, y_min, y_max not further than max_dist from each other
+    '''
     repeat = True
     while repeat == True:
         x_rand = np.random.uniform(x_min, x_max, 2)

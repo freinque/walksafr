@@ -39,7 +39,7 @@ class Ends(models.Model):
 
 class Crimes(models.Model):
     id = models.IntegerField( primary_key=True)
-    index = models.IntegerField( blank=True, null=True )
+    #index = models.IntegerField( blank=True, null=True )
     incidntnum = models.BigIntegerField(db_column='IncidntNum', blank=True, null=True)  # Field name made lowercase.
     category = models.TextField(db_column='Category', blank=True, null=True)  # Field name made lowercase.
     descript = models.TextField(db_column='Descript', blank=True, null=True)  # Field name made lowercase.
@@ -78,4 +78,20 @@ class PopDensity(models.Model):
         managed = False
         db_table = 'pop_density'
 
+class Tweets(models.Model):
+    tweet_id = models.BigIntegerField(blank=True, null=True)
+    datetime = models.TextField(blank=True, null=True)
+    x = models.FloatField(blank=True, null=True)
+    y = models.FloatField(blank=True, null=True)
+    tweet = models.TextField(blank=True, null=True)
+    ns_datetime = models.DateTimeField(blank=True, null=True)
+    ns_date = models.DateField(blank=True, null=True)
+    ns_time = models.TimeField(blank=True, null=True)
+    ns_dayofweek = models.IntegerField(blank=True, null=True)
+    city = models.CharField(max_length=30, blank=True, null=True)
+    id = models.IntegerField( primary_key=True )
+
+    class Meta:
+        managed = False
+        db_table = 'tweets'
 
